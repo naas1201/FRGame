@@ -1,0 +1,200 @@
+[
+  {
+    "id": "debut",
+    "titre": "Perte d'emploi",
+    "description": "Vous êtes Jean Dupont, consultant français aux Philippines. Votre manager vous convoque : 'Jean, mauvaises nouvelles. Restructuration. Votre poste est supprimé.' Vous perdez votre emploi. Le retour en France semble inévitable.\nVotre moral ({joueur.statsNumeriques.moral}) en prend un coup.",
+    "consequencesEntree": [
+      {
+        "typeDeConsequence": "MODIFIER_STAT_NUMERIQUE",
+        "nomParametre": "moral",
+        "valeurParametre": "-20",
+        "condition": { "typeCondition": "AUCUN" }
+      }
+    ],
+    "choix": [
+      {
+        "texteAffichage": "Organiser immédiatement le retour en France.",
+        "idNoeudSuivant": "retour_france",
+        "consequences": [
+          {
+            "typeDeConsequence": "MODIFIER_STAT_NUMERIQUE",
+            "nomParametre": "stress",
+            "valeurParametre": "10",
+            "condition": { "typeCondition": "AUCUN" }
+          }
+        ],
+        "conditionAffichage": { "typeCondition": "AUCUN" }
+      },
+      {
+        "texteAffichage": "Prendre quelques jours pour encaisser et réfléchir.",
+        "idNoeudSuivant": "reflexion_philippines",
+        "consequences": [
+          {
+            "typeDeConsequence": "MODIFIER_STAT_NUMERIQUE",
+            "nomParametre": "tempsDisponible",
+            "valeurParametre": "-3",
+            "condition": { "typeCondition": "AUCUN" }
+          }
+        ],
+        "conditionAffichage": { "typeCondition": "AUCUN" }
+      }
+    ],
+    "typeDeNoeud": "EVENEMENT_MAJEUR"
+  },
+  {
+    "id": "reflexion_philippines",
+    "titre": "Quelques jours de répit",
+    "description": "Vous passez quelques jours à Manille, entre les démarches administratives et les appels à votre fiancée, Maria. Elle est médecin et espère toujours pouvoir vous rejoindre en France un jour. La situation est stressante.\nLe temps passe ({joueur.statsNumeriques.tempsDisponible}). Votre stress ({joueur.statsNumeriques.stress}) augmente un peu.",
+    "consequencesEntree": [
+       {
+        "typeDeConsequence": "MODIFIER_STAT_NUMERIQUE",
+        "nomParametre": "stress",
+        "valeurParametre": "5",
+        "condition": { "typeCondition": "AUCUN" }
+      }
+    ],
+    "choix": [
+      {
+        "texteAffichage": "Contacter Maria pour discuter sérieusement de l'avenir.",
+        "idNoeudSuivant": "appel_maria_serieux",
+        "conditionAffichage": { "typeCondition": "AUCUN" }
+      },
+      {
+        "texteAffichage": "Finaliser les préparatifs pour rentrer en France seul pour l'instant.",
+        "idNoeudSuivant": "retour_france",
+        "conditionAffichage": { "typeCondition": "AUCUN" }
+      }
+    ],
+    "typeDeNoeud": "STANDARD"
+  },
+  {
+    "id": "retour_france",
+    "titre": "Retour en Métropole",
+    "description": "L'avion atterrit à Paris. Le choc culturel est rude après des années aux Philippines. Vous vous installez temporairement chez vos parents. La France que vous retrouvez semble... changée, plus tendue. Votre 'moral' ({joueur.statsNumeriques.moral}) est bas, mais votre 'determination' ({joueur.statsNumeriques.determination}) à reconstruire votre vie est là.",
+    "consequencesEntree": [
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "moral", "valeurParametre": "-10"},
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "determination", "valeurParametre": "5"},
+      {"typeDeConsequence": "AJOUTER_DRAPEAU_UNIQUE", "nomParametre": "EST_EN_FRANCE"}
+    ],
+    "choix": [
+      {
+        "texteAffichage": "Commencer les démarches pour le visa de Maria.",
+        "idNoeudSuivant": "demarche_visa_maria",
+        "conditionAffichage": {
+          "typeCondition": "DRAPEAU",
+          "nomDrapeau": "EST_EN_FRANCE",
+          "doitEtrePresent": true
+        }
+      },
+      {
+        "texteAffichage": "Chercher un nouveau travail de consultant en France.",
+        "idNoeudSuivant": "recherche_emploi_fr",
+        "consequences": [
+          {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "tempsDisponible", "valeurParametre": "-5"}
+        ]
+      }
+    ],
+    "typeDeNoeud": "CARREFOUR"
+  },
+  {
+    "id": "demarche_visa_maria",
+    "titre": "Le parcours du combattant",
+    "description": "Vous entamez les démarches pour le visa de Maria. L'administration française est un labyrinthe. Les semaines passent. Un jour, la lettre tombe : REFUS. Motif : 'Risque de non-retour'. Maria est dévastée. Une colère froide ({joueur.statsNumeriques.colereJustifiee}) monte en vous. Votre 'determination' ({joueur.statsNumeriques.determination}) explose.",
+    "consequencesEntree": [
+      {"typeDeConsequence": "CHANGER_STATUT_VISA_FIANCEE", "nomParametre":"fianceeVisaStatut", "valeurParametre": "REFUSE"},
+      {"typeDeConsequence": "AJOUTER_DRAPEAU_UNIQUE", "nomParametre": "FIANCEE_VISA_REFUSE"},
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "colereJustifiee", "valeurParametre": "50"},
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "determination", "valeurParametre": "40"},
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "moral", "valeurParametre": "-30"}
+    ],
+    "choix": [
+      {
+        "texteAffichage": "Se résigner et chercher un moyen pour Maria de faire appel.",
+        "idNoeudSuivant": "appel_visa",
+        "conditionAffichage": {
+          "typeCondition": "STATUT_VISA_FIANCEE",
+          "statutAttendu": "REFUSE",
+          "doitEtreEgal": true
+        }
+      },
+      {
+        "texteAffichage": "Cette injustice est trop forte ! Le système est fautif. Il faut le changer.",
+        "idNoeudSuivant": "decision_politique",
+        "conditionAffichage": {
+          "typeCondition": "STATUT_VISA_FIANCEE",
+          "statutAttendu": "REFUSE",
+          "doitEtreEgal": true
+        }
+      }
+    ],
+    "typeDeNoeud": "EVENEMENT_MAJEUR"
+  },
+  {
+    "id": "decision_politique",
+    "titre": "La Graine de la Révolte",
+    "description": "Le refus du visa de Maria est la goutte d'eau. Vous réalisez que les problèmes de la France vous touchent directement. Vous décidez d'étudier le droit et de vous engager pour changer les choses.\nVotre 'connaissanceJuridique' ({joueur.statsNumeriques.connaissanceJuridique}) est faible, mais votre 'determination' ({joueur.statsNumeriques.determination}) est à son comble.",
+    "consequencesEntree": [
+      {"typeDeConsequence": "CHANGER_PROFESSION_JOUEUR", "nomParametre":"professionActuelle", "valeurParametre": "Étudiant en Droit autodidacte"}
+    ],
+    "choix": [
+      {
+        "texteAffichage": "Commencer à étudier le droit constitutionnel français.",
+        "idNoeudSuivant": "etude_droit",
+        "consequences": [
+          {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "tempsDisponible", "valeurParametre": "-10"}
+        ]
+      },
+      {
+        "texteAffichage": "Contacter d'anciens collègues pour sonder le terrain politique.",
+        "idNoeudSuivant": "sonder_politique",
+         "consequences": [
+          {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "tempsDisponible", "valeurParametre": "-3"}
+        ]
+      }
+    ],
+    "typeDeNoeud": "CARREFOUR"
+  },
+  {
+    "id": "appel_visa",
+    "titre": "Voies de Recours",
+    "description": "Faire appel sera long et coûteux. Mais pour Maria, vous êtes prêt à tout.",
+    "choix": [],
+    "typeDeNoeud": "FIN_DE_JEU_NEUTRE"
+  },
+  {
+    "id": "etude_droit",
+    "titre": "Plongée dans les Codes",
+    "description": "Les nuits sont longues, passées sur les articles de loi. Votre connaissance juridique ({joueur.statsNumeriques.connaissanceJuridique}) augmente lentement.",
+    "consequencesEntree": [
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "connaissanceJuridique", "valeurParametre": "15"},
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "fatiguePhysique", "valeurParametre": "10"}
+    ],
+    "choix": [],
+    "typeDeNoeud": "FIN_DE_JEU_NEUTRE"
+  },
+  {
+    "id": "recherche_emploi_fr",
+    "titre": "Retour à la case départ",
+    "description": "La recherche d'emploi est plus difficile que prévu. Le marché est saturé.",
+    "choix": [],
+    "typeDeNoeud": "FIN_DE_JEU_NEUTRE"
+  },
+  {
+    "id": "sonder_politique",
+    "titre": "Premiers Contacts",
+    "description": "Certains contacts sont intéressés, d'autres méfiants. Le chemin sera long.",
+    "choix": [],
+    "typeDeNoeud": "FIN_DE_JEU_NEUTRE"
+  },
+  {
+    "id": "appel_maria_serieux",
+    "description": "La discussion avec Maria est intense. Vous réaffirmez votre engagement. Votre relation ({joueur.statsNumeriques.relationFiancee}) se renforce.",
+    "consequencesEntree": [
+      {"typeDeConsequence": "MODIFIER_STAT_NUMERIQUE", "nomParametre": "relationFiancee", "valeurParametre": "10"}
+    ],
+    "choix": [
+      {"texteAffichage": "Continuer à préparer le retour en France.", "idNoeudSuivant": "retour_france"}
+    ],
+    "typeDeNoeud": "STANDARD"
+  }
+]
