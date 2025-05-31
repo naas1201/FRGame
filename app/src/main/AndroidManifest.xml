@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"> {/* Si 'tools' n'est pas déjà là, ajoutez-le si vous avez utilisé tools:targetApi dans themes.xml */}
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FRGame"  /* Ceci est le thème général de votre application, assurez-vous qu'il correspond au vôtre */
+        tools:targetApi="31">
+
+        <activity
+            android:name=".StartupActivity"
+            android:exported="true"
+            android:theme="@style/Theme.App.Startup"> {/* Applique notre thème plein écran */}
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" /> 
+            {/* android:exported="false" car elle n'est plus lancée directement de l'extérieur */}
+
+        {/* Si vous avez d'autres activités, elles seront déclarées ici */}
+
+    </application>
+
+</manifest>
