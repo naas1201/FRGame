@@ -1,7 +1,23 @@
 package com.votregame.moteurtextuel // Adapte le package à ton projet
 
-// Assure-toi que les classes Joueur, NoeudHistoire, ChoixHistoire, Consequence, Condition,
-// TypeConsequence, OperateurComparaison, VisaStatut, TypeNoeud sont accessibles.
+// Import pour la sérialisation JSON avec Gson
+// Assurez-vous d'ajouter la dépendance Gson à votre projet Android:
+// implementation("com.google.code.gson:gson:2.9.0") // (ou version plus récente)
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken // Pour les types génériques comme Map
+
+// --- Définition de la structure pour l'état de sauvegarde ---
+/**
+ * Classe de données représentant l'état du jeu à sauvegarder ou charger.
+ */
+data class EtatSauvegarde(
+    val joueurSerialise: Joueur,
+    val idNoeudActuelSauvegarde: String?,
+    val consequencesEntreeTraiteesSauvegarde: Boolean,
+    // Sauvegarde les variables locales de tous les noeuds qui en ont.
+    // Clé externe: ID du noeud, Valeur: la map des variables locales de ce noeud.
+    val variablesLocalesDeTousLesNoeuds: Map<String, Map<String, String>>
+)
 
 /**
  * Le moteur principal du jeu textuel.
@@ -14,11 +30,9 @@ class MoteurJeu(var joueur: Joueur) {
 
     private val mapNoeuds: MutableMap<String, NoeudHistoire> = mutableMapOf()
     private var idNoeudActuel: String? = null
-    // Gère si les conséquences d'entrée pour le noeud actuel ont déjà été traitées dans le cycle de vie de ce noeud.
-    // Réinitialisé à chaque changement effectif de idNoeudActuel.
     private var consequencesEntreeTraiteesPourNoeudActuel: Boolean = false
-
-    private val MAX_REDIRECT_DEPTH = 10 // Pour éviter les boucles infinies de redirection
+    private val MAX_REDIRECT_DEPTH = 10
+    private val gson = Gson() // Instance de Gson pour la sérialisation
 
     // --- Initialisation et Chargement ---
 
@@ -28,6 +42,11 @@ class MoteurJeu(var joueur: Joueur) {
             if (mapNoeuds.containsKey(noeud.id)) {
                 logAvertissement("L'ID de noeud '${noeud.id}' est dupliqué. Le dernier sera utilisé.")
             }
+            // Important: S'assurer que chaque noeud a sa propre instance mutable de variablesLocalesAuNoeud
+            // Si les NoeudHistoire sont partagés ou recréés, cette map pourrait être partagée ou perdue.
+            // Il est plus sûr de s'assurer que mapNoeuds contient des copies distinctes si nécessaire,
+            // ou que la structure NoeudHistoire garantit une map mutable unique par instance.
+            // Pour cet exemple, on assume que la listeNoeuds fournit des instances avec des maps distinctes.
             mapNoeuds[noeud.id] = noeud
         }
         idNoeudActuel = null
@@ -53,12 +72,12 @@ class MoteurJeu(var joueur: Joueur) {
         return changerDeNoeudEffectif(idNoeudInitial, 0)
     }
 
-    // --- Changement de Noeud Contrôlé (avec gestion des redirections d'entrée) ---
+    // --- Changement de Noeud Contrôlé ---
 
     private fun changerDeNoeudEffectif(nouveauIdNoeud: String, depth: Int): Boolean {
         if (depth > MAX_REDIRECT_DEPTH) {
             logErreur("Profondeur maximale de redirection atteinte ($MAX_REDIRECT_DEPTH) en essayant d'aller à '$nouveauIdNoeud'. Boucle probable.")
-            this.idNoeudActuel = null // Bloquer le jeu pour éviter une boucle infinie
+            this.idNoeudActuel = null
             return false
         }
 
@@ -69,9 +88,8 @@ class MoteurJeu(var joueur: Joueur) {
         }
 
         this.idNoeudActuel = nouveauIdNoeud
-        this.consequencesEntreeTraiteesPourNoeudActuel = false // Réinitialiser pour le nouveau noeud
+        this.consequencesEntreeTraiteesPourNoeudActuel = false
 
-        // Appliquer les conséquences d'entrée et gérer les redirections potentielles
         val noeudDestination = getNoeudActuel()
         if (noeudDestination != null) {
             val (redirectId, _) = appliquerConsequencesSpecifiques(
@@ -81,13 +99,12 @@ class MoteurJeu(var joueur: Joueur) {
             )
             if (redirectId != null) {
                 logInfo("Redirection par consequenceEntree du noeud '${noeudDestination.id}' vers '$redirectId'.")
-                return changerDeNoeudEffectif(redirectId, depth + 1) // Appel récursif avec profondeur augmentée
+                return changerDeNoeudEffectif(redirectId, depth + 1)
             }
-            this.consequencesEntreeTraiteesPourNoeudActuel = true // Marquer comme traitées si pas de redirection
+            this.consequencesEntreeTraiteesPourNoeudActuel = true
         }
         return true
     }
-
 
     // --- Accès à l'état du jeu ---
 
@@ -121,12 +138,10 @@ class MoteurJeu(var joueur: Joueur) {
         val choixFait = choixVisibles[indexDuChoixVisible]
         logInfo("Choix fait: '${choixFait.texteAffichage}' (cible initiale: '${choixFait.idNoeudSuivant}')")
 
-        // 0. Appliquer les conséquences de sortie du noeud actuel
-        // Une redirection ici prendra le pas sur la destination du choix.
         var (idRedirectionSortie, _) = appliquerConsequencesSpecifiques(
             noeudCourant.consequencesSortie,
             "sortie du noeud ${noeudCourant.id}",
-            0 // depth initiale pour cette phase
+            0
         )
         var prochainNoeudIdCible = idRedirectionSortie ?: choixFait.idNoeudSuivant
 
@@ -134,29 +149,23 @@ class MoteurJeu(var joueur: Joueur) {
             logInfo("Redirection par consequenceSortie du noeud '${noeudCourant.id}' vers '$prochainNoeudIdCible'.")
         }
 
-        // 1. Appliquer les conséquences du choix (qui peuvent aussi rediriger)
-        // Une redirection ici prendra le pas sur `prochainNoeudIdCible` (qui vient de la sortie ou du choix).
         val (idRedirectionChoix, _) = appliquerConsequencesSpecifiques(
             choixFait.consequences,
             "choix '${choixFait.texteAffichage}'",
-            0 // depth initiale pour cette phase
+            0
         )
         if (idRedirectionChoix != null) {
             prochainNoeudIdCible = idRedirectionChoix
             logInfo("Redirection par consequence du choix '${choixFait.texteAffichage}' vers '$prochainNoeudIdCible'.")
         }
         
-        // Cas spécial: si une conséquence du choix était ALLER_AU_NOEUD mais n'a pas été la "dernière" à s'appliquer
-        // (car appliquerConsequencesSpecifiques retourne le premier redirectId non-null),
-        // on vérifie si la logique originale de `lastOrNull` pour `ALLER_AU_NOEUD` dans le choix doit s'appliquer.
-        // Cette logique est maintenant intégrée dans `appliquerConsequencesSpecifiques` qui retourne le premier `ALLER_AU_NOEUD` valide.
-
         return changerDeNoeudEffectif(prochainNoeudIdCible, 0)
     }
 
     // --- Évaluation des Conditions ---
 
     fun evaluerCondition(condition: Condition): Boolean {
+        // ... (code de evaluerCondition inchangé, voir version précédente)
         return when (condition) {
             is Condition.Aucun -> true
             is Condition.StatNumerique -> {
@@ -187,16 +196,12 @@ class MoteurJeu(var joueur: Joueur) {
 
     // --- Application des Conséquences ---
 
-    /**
-     * Applique une liste de conséquences.
-     * @return Pair<String?, Boolean> où String? est l'ID du noeud de redirection si ALLER_AU_NOEUD est déclenché,
-     * et Boolean indique si au moins une conséquence a été effectivement appliquée.
-     */
     private fun appliquerConsequencesSpecifiques(
         consequences: List<Consequence>,
         contexteDebug: String,
         currentRedirectDepth: Int
     ): Pair<String?, Boolean> {
+        // ... (code de appliquerConsequencesSpecifiques inchangé, voir version précédente)
         if (consequences.isEmpty()) return Pair(null, false)
 
         logInfo("Application des conséquences pour contexte: [$contexteDebug]")
@@ -211,8 +216,6 @@ class MoteurJeu(var joueur: Joueur) {
                 if (effetRedirectId != null && redirectId == null) { // Prend la première redirection rencontrée
                     redirectId = effetRedirectId
                     logInfo("    -> Redirection prioritaire par cette conséquence vers '$redirectId'.")
-                    // On pourrait choisir de stopper ici ou de continuer les autres conséquences non-redirectrices.
-                    // Pour l'instant, on continue, mais la première redirection prendra effet.
                 }
             } else {
                 logDebug("  - Cons. #${index + 1} (${consequence.typeDeConsequence}) non appliquée (condition non remplie).")
@@ -221,11 +224,8 @@ class MoteurJeu(var joueur: Joueur) {
         return Pair(redirectId, consequenceAppliquee)
     }
 
-    /**
-     * Applique une conséquence unique.
-     * @return Pair<String?> où String? est l'ID du noeud de redirection si ALLER_AU_NOEUD est déclenché.
-     */
     private fun appliquerUneConsequence(consequence: Consequence, currentRedirectDepth: Int): Pair<String?, Unit> {
+        // ... (code de appliquerUneConsequence inchangé, voir version précédente)
         val nomParam = consequence.nomParametre
         val valParam = consequence.valeurParametre
         var redirectId: String? = null
@@ -276,7 +276,6 @@ class MoteurJeu(var joueur: Joueur) {
                 if (nomParam != null) {
                     if (currentRedirectDepth < MAX_REDIRECT_DEPTH) {
                         redirectId = nomParam
-                        // La redirection effective sera gérée par la fonction appelante
                     } else {
                         logErreur("Profondeur de redirection MAX atteinte. ALLER_AU_NOEUD vers '$nomParam' ignoré.")
                     }
@@ -286,7 +285,6 @@ class MoteurJeu(var joueur: Joueur) {
             }
             TypeConsequence.CHANGER_MUSIQUE_AMBIANCE -> {
                 logInfo("Demande de changement de musique/ambiance vers: ${nomParam ?: "non spécifié"}")
-                // TODO: Envoyer un événement ou appeler un callback pour le système audio.
             }
             TypeConsequence.AUCUNE -> { /* Ne rien faire explicitement */ }
         }
@@ -296,8 +294,9 @@ class MoteurJeu(var joueur: Joueur) {
     // --- Utilitaires ---
 
     fun remplacerPlaceholders(texte: String, noeudContexte: NoeudHistoire?): String {
+        // ... (code de remplacerPlaceholders inchangé, voir version précédente)
         var resultat = texte
-        val placeholderRegex = """\{([\w.:]+)\}""".toRegex() // Supporte maintenant les : pour les arguments
+        val placeholderRegex = """\{([\w.:]+)\}""".toRegex()
 
         placeholderRegex.findAll(texte).forEach { matchResult ->
             val placeholderComplet = matchResult.value
@@ -322,6 +321,7 @@ class MoteurJeu(var joueur: Joueur) {
     }
 
     private fun getValeurJoueurParChemin(parts: List<String>, args: String?): String {
+        // ... (code de getValeurJoueurParChemin inchangé, voir version précédente)
         if (parts.isEmpty()) return "[CHEMIN_JOUEUR_VIDE]"
         return when (parts[0].lowercase()) {
             "nom" -> joueur.nom
@@ -338,12 +338,12 @@ class MoteurJeu(var joueur: Joueur) {
                  parts.size > 1 && parts[1].equals("contient", ignoreCase = true) && parts.size > 2 -> joueur.aLeDrapeau(parts[2]).toString()
                  else -> joueur.statsUniques.joinToString(", ")
             }
-            // Ajouter d'autres propriétés directes du joueur ici
             else -> "[PROPRIETE_JOUEUR_INCONNUE: ${parts.joinToString(".")}]"
         }
     }
 
     private fun getValeurNoeudParChemin(noeud: NoeudHistoire, parts: List<String>, args: String?): String {
+        // ... (code de getValeurNoeudParChemin inchangé, voir version précédente)
         if (parts.isEmpty()) return "[CHEMIN_NOEUD_VIDE]"
         return when (parts[0].lowercase()) {
             "id" -> noeud.id
@@ -356,15 +356,13 @@ class MoteurJeu(var joueur: Joueur) {
     }
 
     private fun getValeurJeuParChemin(parts: List<String>, args: String?): String {
+        // ... (code de getValeurJeuParChemin inchangé, voir version précédente)
         if (parts.isEmpty()) return "[CHEMIN_JEU_VIDE]"
         return when (parts[0].lowercase()) {
             "noeudactuelid" -> idNoeudActuel ?: "Aucun"
-            // "tempstotalecoule" -> // Logique de temps de jeu à implémenter
-            // "nombretours" -> // Logique de comptage de tours
             else -> "[PROPRIETE_JEU_INCONNUE: ${parts.joinToString(".")}]"
         }
     }
-
 
     fun setVariableLocaleNoeudActuel(cle: String, valeur: String) {
         getNoeudActuel()?.variablesLocalesAuNoeud?.set(cle, valeur)
@@ -379,10 +377,127 @@ class MoteurJeu(var joueur: Joueur) {
     private fun logInfo(message: String) = println("[MOTEUR INFO] $message")
     private fun logAvertissement(message: String) = println("[MOTEUR AVERT] $message")
     private fun logErreur(message: String) = println("[MOTEUR ERREUR] $message")
-    private fun logDebug(message: String) = println("[MOTEUR DEBUG] $message") // Pourrait être conditionnel (ex: si mode debug activé)
+    private fun logDebug(message: String) = println("[MOTEUR DEBUG] $message")
 
-    // --- Fonctions à considérer pour l'avenir (non implémentées) ---
-    // fun sauvegarderPartie(nomFichier: String) { /* Logique de sérialisation de l'état du joueur et de idNoeudActuel, variablesLocalesAuNoeud, etc. */ }
-    // fun chargerPartie(nomFichier: String): Boolean { /* Logique de désérialisation */ return false }
-    // fun enregistrerEvenementCallback(typeEvenement: String, callback: () -> Unit) { /* Pour un système d'événements découplé */ }
+    // --- Sauvegarde et Chargement ---
+
+    /**
+     * Sauvegarde l'état actuel du jeu dans un fichier.
+     * @param nomFichier Le nom du fichier de sauvegarde (sans extension, ex: "partie1").
+     * @param context Optionnel: Le Contexte Android, nécessaire pour l'écriture de fichier.
+     * Si null, la fonction simulera la sauvegarde et affichera le JSON en log.
+     * @return True si la sauvegarde a (potentiellement) réussi, false sinon.
+     */
+    fun sauvegarderPartie(nomFichier: String, context: Any? = null): Boolean {
+        logInfo("Tentative de sauvegarde de la partie vers '$nomFichier.json'")
+        try {
+            val variablesLocalesASauvegarder = mutableMapOf<String, Map<String, String>>()
+            mapNoeuds.forEach { (id, noeud) ->
+                if (noeud.variablesLocalesAuNoeud.isNotEmpty()) {
+                    variablesLocalesASauvegarder[id] = noeud.variablesLocalesAuNoeud.toMap() // Copie pour éviter la mutabilité
+                }
+            }
+
+            val etatASauvegarder = EtatSauvegarde(
+                joueurSerialise = joueur, // Joueur est une data class, Gson devrait bien la gérer
+                idNoeudActuelSauvegarde = idNoeudActuel,
+                consequencesEntreeTraiteesSauvegarde = consequencesEntreeTraiteesPourNoeudActuel,
+                variablesLocalesDeTousLesNoeuds = variablesLocalesASauvegarder
+            )
+
+            val jsonSauvegarde = gson.toJson(etatASauvegarder)
+            logDebug("JSON de sauvegarde généré:\n$jsonSauvegarde")
+
+            // --- Début du code spécifique à Android pour l'écriture de fichier ---
+            if (context != null && context is android.content.Context) {
+                // Exemple d'écriture dans le stockage interne de l'application
+                // Assurez-vous d'avoir les permissions nécessaires si vous écrivez ailleurs.
+                val fichier = java.io.File(context.filesDir, "$nomFichier.json")
+                fichier.writeText(jsonSauvegarde)
+                logInfo("Partie sauvegardée avec succès dans ${fichier.absolutePath}")
+            } else {
+                logAvertissement("Contexte Android non fourni. Sauvegarde non écrite sur disque. JSON affiché en DEBUG.")
+                // Pour un test hors Android, vous pourriez écrire dans un fichier local ici:
+                // java.io.File("$nomFichier.json").writeText(jsonSauvegarde)
+                // logInfo("Partie 'simulée' sauvegardée dans $nomFichier.json (environnement de test).")
+            }
+            // --- Fin du code spécifique à Android ---
+
+            return true
+        } catch (e: Exception) {
+            logErreur("Erreur lors de la sauvegarde de la partie: ${e.message}")
+            e.printStackTrace()
+            return false
+        }
+    }
+
+    /**
+     * Charge l'état du jeu depuis un fichier de sauvegarde.
+     * @param nomFichier Le nom du fichier de sauvegarde (sans extension, ex: "partie1").
+     * @param context Optionnel: Le Contexte Android, nécessaire pour la lecture de fichier.
+     * Si null, la fonction tentera de lire depuis le répertoire local (pour test).
+     * @return True si le chargement a réussi, false sinon.
+     */
+    fun chargerPartie(nomFichier: String, context: Any? = null): Boolean {
+        logInfo("Tentative de chargement de la partie depuis '$nomFichier.json'")
+        try {
+            var jsonSauvegarde: String? = null
+
+            // --- Début du code spécifique à Android pour la lecture de fichier ---
+            if (context != null && context is android.content.Context) {
+                val fichier = java.io.File(context.filesDir, "$nomFichier.json")
+                if (fichier.exists()) {
+                    jsonSauvegarde = fichier.readText()
+                } else {
+                    logAvertissement("Fichier de sauvegarde '${fichier.absolutePath}' non trouvé.")
+                    return false
+                }
+            } else {
+                // Pour un test hors Android, essayez de lire depuis le répertoire local
+                val fichierTest = java.io.File("$nomFichier.json")
+                 if (fichierTest.exists()) {
+                    jsonSauvegarde = fichierTest.readText()
+                    logInfo("Chargement 'simulé' depuis ${fichierTest.absolutePath} (environnement de test).")
+                } else {
+                    logAvertissement("Fichier de sauvegarde de test '$nomFichier.json' non trouvé dans le répertoire local.")
+                    return false
+                }
+            }
+            // --- Fin du code spécifique à Android ---
+
+            if (jsonSauvegarde == null || jsonSauvegarde.isBlank()) {
+                logErreur("Le fichier de sauvegarde est vide ou n'a pas pu être lu.")
+                return false
+            }
+
+            logDebug("JSON de sauvegarde lu:\n$jsonSauvegarde")
+
+            val typeEtatSauvegarde = object : TypeToken<EtatSauvegarde>() {}.type
+            val etatCharge = gson.fromJson<EtatSauvegarde>(jsonSauvegarde, typeEtatSauvegarde)
+
+            // Restauration de l'état du moteur
+            this.joueur = etatCharge.joueurSerialise // Remplace l'instance actuelle du joueur
+            this.idNoeudActuel = etatCharge.idNoeudActuelSauvegarde
+            this.consequencesEntreeTraiteesPourNoeudActuel = etatCharge.consequencesEntreeTraiteesSauvegarde
+
+            // Restauration des variables locales des noeuds
+            // Important: Cela suppose que la structure des noeuds (mapNoeuds) est déjà chargée
+            // (par exemple, depuis la définition de l'histoire) avant de charger une partie.
+            // Les variables locales sont restaurées SUR les noeuds existants.
+            mapNoeuds.values.forEach { noeud ->
+                noeud.variablesLocalesAuNoeud.clear() // Efface les anciennes variables locales du noeud en mémoire
+                etatCharge.variablesLocalesDeTousLesNoeuds[noeud.id]?.let { variablesSauvegardeesPourCeNoeud ->
+                    noeud.variablesLocalesAuNoeud.putAll(variablesSauvegardeesPourCeNoeud)
+                }
+            }
+
+            logInfo("Partie chargée avec succès depuis '$nomFichier.json'. Noeud actuel: ${this.idNoeudActuel}")
+            // Il pourrait être utile de rafraîchir l'UI ici ou de notifier l'UI que le jeu a été chargé.
+            return true
+        } catch (e: Exception) {
+            logErreur("Erreur lors du chargement de la partie: ${e.message}")
+            e.printStackTrace()
+            return false
+        }
+    }
 }
